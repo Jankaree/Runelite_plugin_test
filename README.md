@@ -1,2 +1,2 @@
-# Example
-An example greeter plugin
+# Hans highlighter
+This plugin will highlight Hans in Lumbridge 
