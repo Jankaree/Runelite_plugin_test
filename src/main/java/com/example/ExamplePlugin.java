@@ -1,53 +1,126 @@
 package com.example;
 
-import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
-import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.Subscribe;
+import net.runelite.api.Perspective;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import net.runelite.api.NPC;
+import net.runelite.client.ui.overlay.*;
+
 
 @Slf4j
 @PluginDescriptor(
-	name = "Example"
+	name = "Hans finder"
 )
 public class ExamplePlugin extends Plugin
 {
 	@Inject
 	private Client client;
 
+
 	@Inject
-	private ExampleConfig config;
+	private OverlayManager overlayManager;
 
-	@Override
-	protected void startUp() throws Exception
-	{
-		log.debug("Example started!");
-	}
 
-	@Override
-	protected void shutDown() throws Exception
-	{
-		log.debug("Example stopped!");
-	}
+	private final Overlay hansOverlay = new Overlay() {
 
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
 		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
+			setPosition(OverlayPosition.DYNAMIC);
+			setLayer(OverlayLayer.ABOVE_SCENE);
 		}
+
+		@Override
+		public Dimension render(Graphics2D graphics) {
+			for (NPC npc : client.getNpcs()) {
+				if ("Hans".equals(npc.getName())) {
+					graphics.setColor(Color.CYAN);
+					graphics.draw(npc.getConvexHull());
+
+					var textLocation = npc.getCanvasTextLocation(
+							graphics,
+							npc.getName(),
+							npc.getLogicalHeight()
+					);
+
+					if (textLocation != null) {
+						graphics.drawString(
+								npc.getName(),
+								textLocation.getX(),
+								textLocation.getY()
+						);
+					}
+				}
+			}
+			return null;
+		}
+	};
+
+	private final Overlay hansMinimapOverlay = new Overlay()
+	{
+		{
+			setPosition(OverlayPosition.DYNAMIC);
+			setLayer(OverlayLayer.ABOVE_WIDGETS);
+		}
+
+		@Override
+		public Dimension render(Graphics2D graphics)
+		{
+			for (NPC npc : client.getNpcs())
+			{
+				if ("Hans".equals(npc.getName()))
+				{
+					LocalPoint localPoint = npc.getLocalLocation();
+					if (localPoint == null)
+					{
+						continue;
+					}
+
+					var minimapPoint = Perspective.localToMinimap(client, localPoint);
+
+					if (minimapPoint != null)
+					{
+
+						OverlayUtil.renderMinimapLocation(graphics, minimapPoint, Color.CYAN);
+
+
+						String name = npc.getName();
+						int x = minimapPoint.getX();
+						int y = minimapPoint.getY() - 5; // slightly above the dot
+
+
+						graphics.setColor(Color.BLACK);
+						graphics.drawString(name, x + 1, y + 1);
+
+						graphics.setColor(Color.CYAN);
+						graphics.drawString(name, x, y);
+					}
+				}
+			}
+			return null;
+		}
+	};
+
+
+	@Override
+	protected void startUp()
+	{
+		overlayManager.add(hansOverlay);
+		overlayManager.add(hansMinimapOverlay);
 	}
 
-	@Provides
-	ExampleConfig provideConfig(ConfigManager configManager)
+	@Override
+	protected void shutDown()
 	{
-		return configManager.getConfig(ExampleConfig.class);
+		overlayManager.remove(hansOverlay);
+		overlayManager.remove(hansMinimapOverlay);
 	}
+
+
+
 }
